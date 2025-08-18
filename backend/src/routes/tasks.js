@@ -13,12 +13,12 @@ router.get('/', async (req, res) => {
         const { status } = req.query;
         const userId = req.user.userId;
 
-        let sql = 'SELECT * FROM tasks WHERE user_id = $1';
+        let sql = 'SELECT * FROM tasks WHERE user_id = ?';
         let params = [userId];
 
         // Filter by status if provided
         if (status && ['To Do', 'In Progress', 'Done'].includes(status)) {
-            sql += ' AND status = $2';
+            sql += ' AND status = ?';
             params.push(status);
         }
 
@@ -47,7 +47,7 @@ router.get('/:id', async (req, res) => {
         const userId = req.user.userId;
 
         const task = await getRow(
-            'SELECT * FROM tasks WHERE id = $1 AND user_id = $2',
+            'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
             [id, userId]
         );
 
@@ -93,15 +93,17 @@ router.post('/', async (req, res) => {
             });
         }
 
-        const result = await runQuery(
-            'INSERT INTO tasks (title, description, status, deadline, reminder_time, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        const insertResult = await runQuery(
+            'INSERT INTO tasks (title, description, status, deadline, reminder_time, user_id) VALUES (?, ?, ?, ?, ?, ?)',
             [title.trim(), description?.trim() || '', status, deadline || null, reminder_time || null, userId]
         );
+
+        const createdTask = await getRow('SELECT * FROM tasks WHERE id = ?', [insertResult.id]);
 
         res.status(201).json({
             success: true,
             message: 'Task created successfully',
-            data: result
+            data: createdTask
         });
 
     } catch (error) {
@@ -122,7 +124,7 @@ router.put('/:id', async (req, res) => {
 
         // Check if task exists and belongs to user
         const existingTask = await getRow(
-            'SELECT id FROM tasks WHERE id = $1 AND user_id = $2',
+            'SELECT id FROM tasks WHERE id = ? AND user_id = ?',
             [id, userId]
         );
 
@@ -151,30 +153,29 @@ router.put('/:id', async (req, res) => {
         // Build update query dynamically
         const updates = [];
         const params = [];
-        let paramCount = 1;
 
         if (title !== undefined) {
-            updates.push(`title = $${paramCount++}`);
+            updates.push('title = ?');
             params.push(title.trim());
         }
 
         if (description !== undefined) {
-            updates.push(`description = $${paramCount++}`);
+            updates.push('description = ?');
             params.push(description?.trim() || '');
         }
 
         if (status !== undefined) {
-            updates.push(`status = $${paramCount++}`);
+            updates.push('status = ?');
             params.push(status);
         }
 
         if (deadline !== undefined) {
-            updates.push(`deadline = $${paramCount++}`);
+            updates.push('deadline = ?');
             params.push(deadline);
         }
 
         if (reminder_time !== undefined) {
-            updates.push(`reminder_time = $${paramCount++}`);
+            updates.push('reminder_time = ?');
             params.push(reminder_time);
         }
 
@@ -185,14 +186,14 @@ router.put('/:id', async (req, res) => {
             });
         }
 
-        updates.push(`updated_at = CURRENT_TIMESTAMP`);
+        updates.push('updated_at = CURRENT_TIMESTAMP');
         params.push(id, userId);
 
-        const sql = `UPDATE tasks SET ${updates.join(', ')} WHERE id = $${paramCount++} AND user_id = $${paramCount++}`;
+        const sql = `UPDATE tasks SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`;
         await runQuery(sql, params);
 
         // Get the updated task
-        const updatedTask = await getRow('SELECT * FROM tasks WHERE id = $1', [id]);
+        const updatedTask = await getRow('SELECT * FROM tasks WHERE id = ?', [id]);
 
         res.json({
             success: true,
@@ -217,7 +218,7 @@ router.delete('/:id', async (req, res) => {
 
         // Check if task exists and belongs to user
         const existingTask = await getRow(
-            'SELECT id FROM tasks WHERE id = $1 AND user_id = $2',
+            'SELECT id FROM tasks WHERE id = ? AND user_id = ?',
             [id, userId]
         );
 
@@ -228,7 +229,7 @@ router.delete('/:id', async (req, res) => {
             });
         }
 
-        await runQuery('DELETE FROM tasks WHERE id = $1 AND user_id = $2', [id, userId]);
+        await runQuery('DELETE FROM tasks WHERE id = ? AND user_id = ?', [id, userId]);
 
         res.json({
             success: true,

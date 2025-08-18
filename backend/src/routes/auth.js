@@ -137,7 +137,7 @@ router.post('/register', validateRegistration, async (req, res) => {
         }
 
         // Check if user already exists
-        const existingUser = await getRow('SELECT id FROM users WHERE email = $1', [sanitizedEmail]);
+        const existingUser = await getRow('SELECT id FROM users WHERE email = ?', [sanitizedEmail]);
         if (existingUser) {
             return res.status(409).json({
                 success: false,
@@ -151,30 +151,36 @@ router.post('/register', validateRegistration, async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
         // Create user with sanitized data
-        const result = await runQuery(
-            'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email, created_at',
+        const insertResult = await runQuery(
+            'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
             [sanitizedName, sanitizedEmail, hashedPassword]
         );
 
-        if (!result.id) {
+        if (!insertResult.id) {
             throw new Error('Failed to create user');
         }
 
         // Generate token
-        const token = generateToken(result.id);
+        const token = generateToken(insertResult.id);
 
         // Log successful registration (without sensitive data)
-        console.log(`✅ New user registered: ${sanitizedEmail} (ID: ${result.id})`);
+        console.log(`✅ New user registered: ${sanitizedEmail} (ID: ${insertResult.id})`);
+
+        // Fetch created user
+        const createdUser = await getRow(
+            'SELECT id, name, email, created_at FROM users WHERE id = ?',
+            [insertResult.id]
+        );
 
         res.status(201).json({
             success: true,
             message: 'User registered successfully',
             data: {
-                userId: result.id,
-                name: result.name,
-                email: result.email,
+                userId: createdUser.id,
+                name: createdUser.name,
+                email: createdUser.email,
                 token,
-                createdAt: result.created_at
+                createdAt: createdUser.created_at
             }
         });
 
@@ -208,7 +214,7 @@ router.post('/login', validateLogin, async (req, res) => {
 
         // Find user
         const user = await getRow(
-            'SELECT id, name, email, password, created_at FROM users WHERE email = $1', 
+            'SELECT id, name, email, password, created_at FROM users WHERE email = ?', 
             [sanitizedEmail]
         );
 

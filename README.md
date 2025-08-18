@@ -111,7 +111,10 @@ task-manager/
 2. **Build and run backend container**
    ```bash
    docker build -t task-manager-api .
-   docker run -p 5000:5000 task-manager-api
+   # Requirement-compatible commands
+   docker run -p 80:80 task-manager-api
+   # Or expose non-privileged host port to container port 80
+   docker run -p 5000:80 task-manager-api
    ```
 
 ## 🌐 API Endpoints
@@ -155,12 +158,25 @@ task-manager/
    ```bash
    git clone <your-repo-url>
    cd task-manager/backend
-   docker-compose up -d
+   # Option A: docker-compose
+   docker-compose up -d --build
+   # Option B: plain Docker
+   docker build -t task-manager-api .
+   docker run -d -p 80:80 --name task-manager-api \
+     -e NODE_ENV=production \
+     -e PORT=80 \
+     -e JWT_SECRET=change-me-in-prod \
+     -e FRONTEND_URL=https://your-netlify-site.netlify.app \
+     task-manager-api
    ```
 
 5. **Configure Auto-scheduler (8 AM - 8 PM IST)**
    - Tag EC2 instance with `Schedule = OfficeHours`
    - Use AWS EventBridge + Lambda for start/stop automation
+   - Create two Lambda functions (Python 3.11 or Node 18):
+     - Start EC2 by tag at 8 AM IST (cron: `cron(30 2 ? * MON-FRI *)`)
+     - Stop EC2 by tag at 8 PM IST (cron: `cron(30 14 ? * MON-FRI *)`)
+     - Attach IAM role with `ec2:StartInstances` and `ec2:StopInstances`
    - Reference: [AWS EC2 Scheduler Documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/StartStopEC2Instance.html)
 
 ### Frontend Deployment (Netlify)
@@ -172,7 +188,10 @@ task-manager/
 
 2. **Environment Variables**
    ```
-   REACT_APP_API_URL=https://your-ec2-ip/api
+   # If backend on EC2 over port 80
+   REACT_APP_API_URL=http://<your-ec2-ip>/api
+   # If using a non-80 host port
+   # REACT_APP_API_URL=http://<your-ec2-ip>:5000/api
    ```
 
 3. **Auto-deploy**

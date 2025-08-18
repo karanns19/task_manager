@@ -1,54 +1,25 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: task-manager-postgres
-    environment:
-      POSTGRES_DB: task_manager
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   task-manager-api:
     build: .
     container_name: task-manager-api
     ports:
-      - "5001:5001"
+      - "80:80"
     environment:
       - NODE_ENV=production
-      - PORT=5001
+      - PORT=80
       - JWT_SECRET=your-super-secret-jwt-key-change-in-production
       - FRONTEND_URL=http://localhost:3000
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=task_manager
-      - DB_USER=postgres
-      - DB_PASSWORD=password
     volumes:
       - ./data:/app/data
-    depends_on:
-      postgres:
-        condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-volumes:
-  postgres_data:
 
 networks:
   default:

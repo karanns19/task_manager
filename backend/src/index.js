@@ -193,23 +193,23 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Server PORT
-const PORT = process.env.PORT || 5001;
+// Server PORT (default 80 for container compatibility)
+const PORT = process.env.PORT || 80;
 
 // Enhanced reminder checks with better error handling
 cron.schedule('* * * * *', async () => {
     try {
         const now = new Date();
-        const result = await require('./database').pool.query(
-            'SELECT t.*, u.email FROM tasks t JOIN users u ON t.user_id = u.id WHERE t.reminder_time <= $1 AND t.status != $2',
-            [now, 'Done']
+        const result = await require('./database').getAll(
+            'SELECT t.*, u.email FROM tasks t JOIN users u ON t.user_id = u.id WHERE t.reminder_time <= ? AND t.status != ?',
+            [now.toISOString(), 'Done']
         );
         
-        if (result.rows.length > 0) {
-            console.log(`🔔 Found ${result.rows.length} tasks with reminders due`);
+        if (result.length > 0) {
+            console.log(`🔔 Found ${result.length} tasks with reminders due`);
             // Here you would typically send email/SMS notifications
             // For now, just log them
-            result.rows.forEach(task => {
+            result.forEach(task => {
                 console.log(`📅 Reminder: Task "${task.title}" is due for user ${task.email}`);
             });
         }
@@ -230,7 +230,7 @@ const gracefulShutdown = async (signal) => {
     
     // Close database connections
     try {
-        await require('./database').pool.end();
+        require('./database').db.close();
         console.log('✅ Database connections closed');
     } catch (error) {
         console.error('❌ Error closing database connections:', error);
